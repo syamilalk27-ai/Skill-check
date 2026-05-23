@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CURE — Skill Check</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #0a0a0c;
+    --surface: #111116;
+    --border: #1e1e28;
+    --accent: #e8c84a;
+    --accent2: #ff4444;
+    --great: #4affe8;
+    --success: #8cff4a;
+    --neutral: #c8c8c8;
+    --fail: #ff3333;
+    --text: #e8e8f0;
+    --dim: #555568;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* noise texture */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    z-index: 1;
+  }
+
+  h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(12px, 2vw, 16px);
+    letter-spacing: 0.5em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  /* ─── Wheel ─── */
+  .wheel-wrap {
+    position: relative;
+    width: 280px;
+    height: 280px;
+  }
+
+  #skillCanvas {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    filter: drop-shadow(0 0 18px rgba(232,200,74,0.15));
+  }
+
+  /* needle overlay */
+  .needle-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .center-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--text);
+    border-radius: 50%;
+    position: absolute;
+    z-index: 5;
+    box-shadow: 0 0 10px white;
+  }
+
+  /* ─── Info Panel ─── */
+  .info-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    width: 280px;
+    font-size: 11px;
+  }
+
+  .info-cell {
+    background: var(--surface);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .info-label {
+    color: var(--dim);
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+  }
+
+  .info-value {
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  /* ─── Controls ─── */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 280px;
+  }
+
+  .row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 12px 8px;
+    cursor: pointer;
+    transition: all 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .btn:hover::before { opacity: 0.06; }
+  .btn:active::before { opacity: 0.15; }
+
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    color: #0a0a0c;
+    border-color: var(--accent);
+    font-weight: bold;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+  }
+
+  .btn.primary:hover { background: #f5d96a; }
+  .btn.primary:active { background: #d4b030; }
+  .btn.primary::before { display: none; }
+
+  .btn.danger {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+  .btn.danger:hover { background: rgba(255,68,68,0.08); }
+
+  .btn.auto-active {
+    background: rgba(232,200,74,0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+    animation: pulse-border 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,200,74,0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(232,200,74,0); }
+  }
+
+  /* ─── Slider ─── */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .slider-label {
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    width: 60px;
+  }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .slider-val {
+    font-size: 11px;
+    color: var(--accent);
+    width: 32px;
+    text-align: right;
+  }
+
+  /* ─── Result flash ─── */
+  .result-flash {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 0.15em;
+    opacity: 0;
+    pointer-events: none;
+    transition: none;
+    text-shadow: 0 0 30px currentColor;
+    white-space: nowrap;
+    z-index: 10;
+  }
+
+  .result-flash.show {
+    animation: flash-anim 0.8s forwards;
+  }
+
+  @keyframes flash-anim {
+    0%   { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    40%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -60%) scale(0.9); }
+  }
+
+  /* ─── Log ─── */
+  .log {
+    width: 280px;
+    height: 72px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+    scrollbar-width: none;
+  }
+
+  .log-entry {
+    font-size: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    opacity: 0.9;
+  }
+
+  .log-entry.great { color: var(--great); }
+  .log-entry.success { color: var(--success); }
+  .log-entry.neutral { color: var(--neutral); }
+  .log-entry.fail { color: var(--fail); }
+  .log-entry.auto { color: var(--accent); }
+
+  .log-time { color: var(--dim); font-size: 9px; }
+
+  /* score bar */
+  .score-bar {
+    width: 280px;
+    height: 4px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+    position: relative;
+  }
+
+  .score-fill::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 20px;
+    background: linear-gradient(to right, transparent, var(--accent));
+    animation: shimmer 1s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>CURE <span>//</span> SKILL CHECK</h1>
+
+  <div class="wheel-wrap">
+    <canvas id="skillCanvas" width="280" height="280"></canvas>
+    <div class="needle-wrap">
+      <div class="center-dot"></div>
+    </div>
+    <div class="result-flash" id="resultFlash">GREAT</div>
+  </div>
+
+  <div class="score-bar">
+    <div class="score-fill" id="scoreFill" style="width:0%"></div>
+  </div>
+
+  <div class="info-panel">
+    <div class="info-cell">
+      <span class="info-label">Status</span>
+      <span class="info-value" id="statusVal">IDLE</span>
+    </div>
+    <div class="info-cell">
+      <span class="info-label">Score</span>
+      <span class="info-value" id="scoreVal">0</span>
+    </div>
+    <div class="info-cell">
+      <span class="info-label">Streak</span>
+      <span class="info-value" id="streakVal">0</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="slider-row">
+      <span class="slider-label">Speed</span>
+      <input type="range" id="speedSlider" min="0.4" max="3.0" step="0.1" value="1.0">
+      <span class="slider-val" id="speedVal">1.0x</span>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="startBtn">START</button>
+      <button class="btn" id="manualBtn" disabled>PRESS</button>
+    </div>
+
+    <div class="row">
+      <button class="btn" id="autoBtn">AUTO PERFECT</button>
+      <button class="btn danger" id="resetBtn">RESET</button>
+    </div>
+  </div>
+
+  <div class="log" id="logBox"></div>
+</div>
+
+<script>
+// ─── Constants (from source code) ───────────────────────────────
+// Line Rotation ranges from 0 → 360
+// Goal.Rotation = random(0, 200)
+// Great zone:   [102 + goal, 116 + goal]   → width = 14°
+// Success zone: [116 + goal, 159 + goal]   → width = 43°
+// Fail: everything else
+
+const GREAT_START_OFFSET = 102;
+const GREAT_END_OFFSET   = 116;
+const SUCCESS_END_OFFSET = 159;
+
+// base speed: 1.3s per full 360° (from tweenLineRotation code)
+// TweenInfo.new(math.max(1.3 * speedMultiplier, 0.4), Linear)
+const BASE_DURATION = 1300; // ms
+
+// ─── State ───────────────────────────────────────────────────────
+let running = false;
+let autoMode = false;
+let needle = 0;           // current degrees
+let goalRot = 0;          // randomized each round
+let startTime = null;
+let animFrame = null;
+let speed = 1.0;
+let score = 0;
+let streak = 0;
+let autoScheduled = false;
+
+// ─── Canvas setup ────────────────────────────────────────────────
+const canvas = document.getElementById('skillCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const cx = W / 2, cy = H / 2;
+const R = 120;
+
+function degToRad(d) { return d * Math.PI / 180; }
+
+function drawWheel() {
+  ctx.clearRect(0, 0, W, H);
+
+  // ── outer ring background ──
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + 8, 0, Math.PI * 2);
+  ctx.strokeStyle = '#1e1e28';
+  ctx.lineWidth = 16;
+  ctx.stroke();
+
+  // ── tick marks ──
+  for (let i = 0; i < 36; i++) {
+    const a = degToRad(i * 10 - 90);
+    const inner = R + 2;
+    const outer = R + 6 + (i % 3 === 0 ? 4 : 0);
+    ctx.beginPath();
+    ctx.moveTo(cx + inner * Math.cos(a), cy + inner * Math.sin(a));
+    ctx.lineTo(cx + outer * Math.cos(a), cy + outer * Math.sin(a));
+    ctx.strokeStyle = '#2a2a38';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // ── inner circle ──
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = '#0d0d12';
+  ctx.fill();
+  ctx.strokeStyle = '#1a1a24';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // ── GREAT zone (brightest, smallest) ──
+  drawArc(
+    goalRot + GREAT_START_OFFSET,
+    goalRot + GREAT_END_OFFSET,
+    '#4affe8', 0.95, 18
+  );
+
+  // ── SUCCESS zone (medium) ──
+  drawArc(
+    goalRot + GREAT_END_OFFSET,
+    goalRot + SUCCESS_END_OFFSET,
+    '#8cff4a', 0.7, 14
+  );
+
+  // ── Needle ──
+  const needleRad = degToRad(needle - 90);
+  const nx = cx + (R - 4) * Math.cos(needleRad);
+  const ny = cy + (R - 4) * Math.sin(needleRad);
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'white';
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // tip dot
+  ctx.beginPath();
+  ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'white';
+  ctx.shadowColor = 'white';
+  ctx.shadowBlur = 12;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // ── Center ring ──
+  ctx.beginPath();
+  ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+  ctx.strokeStyle = '#2a2a38';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+  ctx.strokeStyle = '#0d0d12';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+}
+
+function drawArc(startDeg, endDeg, color, opacity, width) {
+  // Convert from Roblox rotation convention:
+  // Roblox uses 0° = top, clockwise. Canvas 0° = right.
+  // So offset by -90°
+  const s = degToRad(startDeg - 90);
+  const e = degToRad(endDeg - 90);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - width / 2, s, e);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.globalAlpha = opacity;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+}
+
+// ─── Game Loop ────────────────────────────────────────────────────
+function startRound() {
+  if (running) return;
+  running = true;
+  autoScheduled = false;
+
+  goalRot = Math.floor(Math.random() * 200);
+  needle = 0;
+  startTime = performance.now();
+
+  document.getElementById('manualBtn').disabled = false;
+  document.getElementById('startBtn').textContent = 'RUNNING';
+  document.getElementById('statusVal').textContent = 'RUNNING';
+
+  if (autoMode) scheduleAutoHit();
+
+  loop();
+}
+
+function loop() {
+  if (!running) return;
+
+  const elapsed = performance.now() - startTime;
+  const duration = Math.max(BASE_DURATION * 1.3 * speed, 400);
+  const frac = (elapsed % duration) / duration;
+  needle = frac * 360;
+
+  drawWheel();
+  animFrame = requestAnimationFrame(loop);
+}
+
+function stopRound() {
+  if (!running) return;
+  running = false;
+  cancelAnimationFrame(animFrame);
+  document.getElementById('manualBtn').disabled = true;
+  document.getElementById('startBtn').textContent = 'START';
+}
+
+function checkResult(sourceLabel) {
+  if (!running) return;
+
+  const rot = needle % 360;
+  const g1 = (goalRot + GREAT_START_OFFSET) % 360;
+  const g2 = (goalRot + GREAT_END_OFFSET) % 360;
+  const s2 = (goalRot + SUCCESS_END_OFFSET) % 360;
+
+  let result;
+  if (inArc(rot, g1, g2)) {
+    result = 'great';
+  } else if (inArc(rot, g2, s2)) {
+    result = 'success';
+  } else {
+    result = 'fail';
+  }
+
+  handleResult(result, sourceLabel);
+}
+
+function inArc(needle, start, end) {
+  // Handle wrap-around
+  if (start <= end) {
+    return needle >= start && needle <= end;
+  } else {
+    return needle >= start || needle <= end;
+  }
+}
+
+function handleResult(result, source) {
+  stopRound();
+  drawWheel();
+
+  const flash = document.getElementById('resultFlash');
+  flash.classList.remove('show');
+  void flash.offsetWidth; // reflow
+
+  let delta = 0;
+  if (result === 'great') {
+    flash.textContent = '★ GREAT';
+    flash.style.color = '#4affe8';
+    delta = 2;
+    streak++;
+  } else if (result === 'success') {
+    flash.textContent = 'SUCCESS';
+    flash.style.color = '#8cff4a';
+    delta = 1;
+    streak++;
+  } else {
+    flash.textContent = '✕ FAIL';
+    flash.style.color = '#ff3333';
+    delta = -10;
+    streak = 0;
+  }
+
+  flash.classList.add('show');
+  score = Math.max(0, score + delta);
+
+  updateUI();
+  addLog(result, source, delta);
+
+  document.getElementById('statusVal').textContent =
+    result === 'great' ? 'GREAT' :
+    result === 'success' ? 'SUCCESS' : 'FAIL';
+}
+
+function updateUI() {
+  document.getElementById('scoreVal').textContent = score;
+  document.getElementById('streakVal').textContent = streak;
+  document.getElementById('scoreFill').style.width =
+    Math.min(score * 5, 100) + '%';
+}
+
+// ─── Auto Perfect ─────────────────────────────────────────────────
+function scheduleAutoHit() {
+  if (autoScheduled) return;
+  autoScheduled = true;
+
+  // Calculate the time when needle reaches center of GREAT zone
+  const targetAngle = (goalRot + GREAT_START_OFFSET + 7) % 360; // center of great zone
+  const duration = Math.max(BASE_DURATION * 1.3 * speed, 400);
+
+  // current needle is 0 at startTime, goes 0→360 in 'duration' ms
+  // how long until needle = targetAngle?
+  let delay = (targetAngle / 360) * duration;
+
+  // Account for time already elapsed (should be ~0 at round start)
+  const elapsed = performance.now() - startTime;
+  delay -= elapsed;
+  if (delay < 0) delay += duration; // next revolution
+
+  // small compensation for JS timer jitter
+  delay -= 12;
+
+  setTimeout(() => {
+    if (running && autoMode) {
+      checkResult('AUTO');
+    }
+  }, Math.max(delay, 0));
+}
+
+// ─── Log ──────────────────────────────────────────────────────────
+const logBox = document.getElementById('logBox');
+
+function addLog(result, source, delta) {
+  const el = document.createElement('div');
+  el.className = 'log-entry ' + (source === 'AUTO' ? 'auto' : result);
+
+  const t = new Date();
+  const ts = t.getHours().toString().padStart(2,'0') + ':' +
+             t.getMinutes().toString().padStart(2,'0') + ':' +
+             t.getSeconds().toString().padStart(2,'0');
+
+  const icon = result === 'great' ? '★ GREAT' :
+               result === 'success' ? '✓ SUCCESS' : '✕ FAIL';
+
+  el.innerHTML = `
+    <span>${icon} [${source}] ${delta >= 0 ? '+' : ''}${delta}pts</span>
+    <span class="log-time">${ts}</span>
+  `;
+  logBox.prepend(el);
+
+  // keep max 20 entries
+  while (logBox.children.length > 20) {
+    logBox.removeChild(logBox.lastChild);
+  }
+}
+
+// ─── Events ───────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', () => {
+  if (!running) startRound();
+});
+
+document.getElementById('manualBtn').addEventListener('click', () => {
+  if (running) checkResult('MANUAL');
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'KeyE') {
+    e.preventDefault();
+    if (!running) {
+      startRound();
+    } else {
+      checkResult('MANUAL');
+    }
+  }
+});
+
+document.getElementById('autoBtn').addEventListener('click', () => {
+  autoMode = !autoMode;
+  const btn = document.getElementById('autoBtn');
+  btn.classList.toggle('auto-active', autoMode);
+  btn.textContent = autoMode ? '⚡ AUTO: ON' : 'AUTO PERFECT';
+  document.getElementById('statusVal').textContent = autoMode ? 'AUTO' : 'IDLE';
+
+  if (autoMode && running) scheduleAutoHit();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  stopRound();
+  score = 0;
+  streak = 0;
+  needle = 0;
+  goalRot = 0;
+  autoMode = false;
+  document.getElementById('autoBtn').classList.remove('auto-active');
+  document.getElementById('autoBtn').textContent = 'AUTO PERFECT';
+  document.getElementById('statusVal').textContent = 'IDLE';
+  updateUI();
+  logBox.innerHTML = '';
+  drawWheel();
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  speed = parseFloat(e.target.value);
+  document.getElementById('speedVal').textContent = speed.toFixed(1) + 'x';
+});
+
+// ─── Init ─────────────────────────────────────────────────────────
+drawWheel();
+
+// auto-start loop for new rounds in auto mode
+setInterval(() => {
+  if (autoMode && !running) {
+    setTimeout(startRound, 300);
+  }
+}, 1000);
+</script>
+</body>
+</html>
